@@ -1,0 +1,122 @@
+[23bcs002@mepcolinux ex9]$cat ex9.prn
+Script started on Friday 24 April 2026 02:59:36 PM IST
+[23bcs002@mepcolinux ex9]$cat ex9_new.c
+#include <stdio.h>
+#include <math.h>
+#include <omp.h>
+
+double f(double x) {
+    return x * x;  /* example integrand: x² */
+}
+
+int main(void) {
+    double a, b;
+    int n;
+
+    /* Get user input */
+    printf("Enter lower bound (a): ");
+    scanf("%lf", &a);
+
+    printf("Enter upper bound (b): ");
+    scanf("%lf", &b);
+
+    printf("Enter number of intervals (n): ");
+    scanf("%d", &n);
+
+    /* Validate input */
+    if (n <= 0) {
+        printf("Error: Number of intervals must be positive.\n");
+        return 1;
+    }
+
+    double h = (b - a) / n;
+    double global_sum = 0.0;
+
+    printf("\n=== Numerical Integration (Trapezoidal Rule) ===\n");
+    printf("Function: f(x) = x^2\n");
+    printf("Interval: [%.2f, %.2f]\n", a, b);
+    printf("Number of intervals: %d\n", n);
+    printf("Step size (h): %.10f\n\n", h);
+
+    /* Parallel region */
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+        int nth = omp_get_num_threads();
+        double local_sum = 0.0;
+
+        /* Divide loop among threads */
+        #pragma omp for
+        for (int i = 1; i < n; ++i) {
+            double x = a + i * h;
+            local_sum += f(x);
+        }
+
+        /* Print local sum (serialized) */
+        #pragma omp critical
+        {
+            printf("Thread %2d/%2d local_sum = %.12f\n", tid, nth, local_sum);
+        }
+
+        /* Accumulate into global_sum */
+        #pragma omp atomic
+        global_sum += local_sum;
+    }
+
+    /* Trapezoidal rule: (h/2) * [f(a) + 2*sum + f(b)] */
+    double integral = (h / 2.0) * (f(a) + 2.0 * global_sum + f(b));
+
+    printf("\n=== Results ===\n");
+    printf("Global sum (sum of interior f(x)) = %.12f\n", global_sum);
+    printf("Integral ≈ %.12f\n", integral);
+
+    /* Compare with exact result */
+    double exact = (pow(b, 3) - pow(a, 3)) / 3.0;
+    printf("Exact integral (analytical) = %.12f\n", exact);
+    printf("Absolute error = %.12f\n", fabs(integral - exact));
+
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+[23bcs002@mepcolinux ex9]$./new
+Enter lower bound (a): 5
+Enter upper bound (b): 10
+Enter number of intervals (n): 3
+
+=== Numerical Integration (Trapezoidal Rule) ===
+Function: f(x) = x^2
+Interval: [5.00, 10.00]
+Number of intervals: 3
+Step size (h): 1.6666666667
+
+Thread  0/16 local_sum = 44.444444444444
+Thread 11/16 local_sum = 0.000000000000
+Thread 13/16 local_sum = 0.000000000000
+Thread  3/16 local_sum = 0.000000000000
+Thread  5/16 local_sum = 0.000000000000
+Thread  7/16 local_sum = 0.000000000000
+Thread 15/16 local_sum = 0.000000000000
+Thread  9/16 local_sum = 0.000000000000
+Thread  6/16 local_sum = 0.000000000000
+Thread  8/16 local_sum = 0.000000000000
+Thread  1/16 local_sum = 69.444444444444
+Thread 14/16 local_sum = 0.000000000000
+Thread 12/16 local_sum = 0.000000000000
+Thread 10/16 local_sum = 0.000000000000
+Thread  4/16 local_sum = 0.000000000000
+Thread  2/16 local_sum = 0.000000000000
+
+=== Results ===
+Global sum (sum of interior f(x)) = 113.888888888889
+Integral ≈ 293.981481481482
+Exact integral (analytical) = 291.666666666667
+Absolute error = 2.314814814815
